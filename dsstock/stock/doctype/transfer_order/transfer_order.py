@@ -16,6 +16,7 @@ class TransferOrder(Document):
 		#repeat with to stock
 
 	def on_submit(self):
+		pass
 		#bin must exists
 		#find from bin and remove predicted line, flatten qty at hand
 		#repeat with stock
