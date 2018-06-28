@@ -7,4 +7,6 @@ import frappe
 from frappe.model.document import Document
 
 class Bin(Document):
-	pass
+	def autoname(self):
+		itemCode = frappe.get_doc("Item",self.item).code
+		self.name = "["+itemCode+"] / "+self.stock
