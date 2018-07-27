@@ -76,7 +76,8 @@ frappe.ui.form.on('Transfer Order Item', {
 		updateAvailabilty();
 	},
 	before_items_remove(frm,cdt,cdn) {
-		var deleted_row = frappe.get_doc(cdt, cdn);
-		console.log(deleted_row);
+		updateAvailabilty();
+		//var deleted_row = frappe.get_doc(cdt, cdn);
+		//console.log(deleted_row);
 	}
 });

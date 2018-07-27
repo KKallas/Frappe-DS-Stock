@@ -41,58 +41,70 @@ class TransferOrder(Document):
 					self.remove(subItem)
 				self.update_children()
 
-		#remove old esitamted entries
-		if not frappe.db.exists("Transfer Order",self.name):
-			oldDoc = self.get_doc_before_save()
+		#function to traverse items
+		def updateBins(doc, todo):
+			'''
+			Traverses through items list adds (todo=add) or removes projected qty (todo=clean)
+			'''
 			#check if either of the stocks is virtual
-			oldFromVirtual = frappe.get_doc("Stock", oldDoc.stock_from).virtualstock
-			oldToVirtual = frappe.get_doc("Stock", oldDoc.stock_to).virtualstock
+		 	fromVirtual = frappe.get_doc("Stock", doc.stock_from).virtualstock
+			toVirtual = frappe.get_doc("Stock", doc.stock_to).virtualstock
 
-			for item in oldDoc.items:
-				oldItemDoc = frappe.get_doc("Item",item.item)
+			#scan through all items in the subtable
+			for item in doc.items:
+				#get the item deffiniton doc
+				itemDoc = frappe.get_doc("Item",item.item)
 				#from
-				if not oldFromVirtual:
-					binDoc = frappe.get_doc("Bin","["+oldItemDoc.code+"] / "+oldDoc.stock_from)
-					binDoc.forecastDelete(self)
+				if not fromVirtual:
+					binName = "["+itemDoc.code+"] / "+doc.stock_from
+					#make sure bin exists
+					if frappe.db.exists("Bin", binName):
+						binDoc = frappe.get_doc("Bin",binName)
+						if todo == "clean":
+							binDoc.forecastDelete(self)
+						else:
+							binDoc.forecastUpdate(item,doc,1)
+
+					else:
+						#make bin if one does not exist
+						binDoc = frappe.get_doc({"doctype":"Bin","stock":doc.stock_from,"item":item.item})
+						binDoc.insert()
+						#when cleaning out old entries there and the bind does not exist, it is enough to create one
+						if todo == "clean":
+							pass
+						else:
+							binDoc.forecastUpdate(item,doc,1)
+
+
 				#to
-				if not oldToVirtual:
-					binDoc = frappe.get_doc("Bin","["+oldItemDoc.code+"] / "+oldDoc.stock_to)
-					binDoc.forecastDelete(self)
+				if not toVirtual:
+					binName = "["+itemDoc.code+"] / "+doc.stock_to
+					#make sure bin exists
+					if frappe.db.exists("Bin", binName):
+						binDoc = frappe.get_doc("Bin",binName)
+						if todo == "clean":
+							binDoc.forecastDelete(self)
+						else:
+							binDoc.forecastUpdate(item,doc,0)
 
-		#add new estimated entries
-		#check if either of the stocks is virtual
-		fromVirtual = frappe.get_doc("Stock", self.stock_from).virtualstock
-		toVirtual = frappe.get_doc("Stock", self.stock_to).virtualstock
+					else:
+						#make bin if one does not exist
+						binDoc = frappe.get_doc({"doctype":"Bin","stock":doc.stock_to,"item":item.item})
+						binDoc.insert()
+						#when cleaning out old entries there and the bind does not exist, it is enough to create one
+						if todo == "clean":
+							pass
+						else:
+							binDoc.forecastUpdate(item,doc,0)
 
-		for item in self.items:
-			itemDoc = frappe.get_doc("Item",item.item)
+		#remove old esitamted entries
+		if frappe.db.exists("Transfer Order",self.name):
+			updateBins(self.get_doc_before_save(),"clean")
 
-			if not fromVirtual:
-				#check if the bin exitst, if not create one
-				if frappe.db.exists("Bin","["+itemDoc.code+"] / "+self.stock_from):
-					#update bin line item
-					binDoc = frappe.get_doc("Bin","["+itemDoc.code+"] / "+self.stock_from)
-					binDoc.forecastUpdate(item,self,1)
-				#create Bin
-				else:
-					doc = frappe.get_doc({"doctype":"Bin","stock":self.stock_from,"item":item.item})
-					doc.insert()
-					doc.forecastUpdate(item,self,1)
-			#to
-			if not toVirtual:
-				#check if the bin exitst, if not create one
-				if frappe.db.exists("Bin","["+itemDoc.code+"] / "+self.stock_to):
-					#update bin line item
-					binDoc = frappe.get_doc("Bin","["+itemDoc.code+"] / "+self.stock_to)
-					binDoc.forecastUpdate(item,self,0)
-				#create Bin
-				else:
-					doc = frappe.get_doc({"doctype":"Bin","stock":self.stock_to,"item":item.item})
-					doc.insert()
-					doc.forecastUpdate(item,self,0)
+		#add lines
+		updateBins(self,"add")
 
-
-	def on_submit(self):
+ 	def on_submit(self):
 		'''
 		Submit transaction
 

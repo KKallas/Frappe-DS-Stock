@@ -4,6 +4,7 @@
 
 from __future__ import unicode_literals
 import frappe
+from datetime import date
 from frappe.model.document import Document
 from operator import attrgetter
 
@@ -15,20 +16,24 @@ class Bin(Document):
 	def forecastRecalculate(self):
 		#if there are no forcasted lines
 		if len(self.forecast_table) == 0:
-			self.forecastQTY = 0
-			#self.save()
+			self.forecast = self.qty
+			self.db_update()
 			return
 
 		self.forecast_table.sort(key=attrgetter('qty'), reverse=True)
 		self.forecast_table.sort(key=attrgetter('date'))
 
 		#add the lines togheter and update the IDX
-		lineSum = self.qty
+		#float casting if the record has not been saved the data type might not be correct
+		if self.qty:
+			lineSum = float(self.qty)
+		else:
+			lineSum = 0
 		newIdx = 0
 		for line in self.forecast_table:
 			#if it is just created Bin the line does not have defined qty?
 			if line.qty:
-				lineSum+=line.qty
+				lineSum+=float(line.qty)
 			newIdx+=1
 			line.qty_avaiable = lineSum
 			line.idx = newIdx
@@ -46,6 +51,7 @@ class Bin(Document):
 		frappe.db.commit()
 
 	def forecastUpdate(self,doc,transfer,dir):
+		print len(self.forecast_table)
 		#deal with from/to stock, if from then we take from that stock
 		if dir==1:
 			qty = doc.qty*-1
@@ -53,17 +59,17 @@ class Bin(Document):
 			qty = doc.qty
 
 		#create new forecast line
-		newDoc = self.append("forecast_table",{"date":transfer.date,"qty":qty,"transfer":transfer.name})
-		#newDoc.save()
+		dateStringArray = transfer.date.split("-")
+		properYear = int(dateStringArray[0])
+		properMonth = int(dateStringArray[1])
+		properDay = int(dateStringArray[2])
+		properDate = date(properYear,properMonth,properDay)
+		newDoc = self.append("forecast_table",{"date":properDate,"qty":float(qty),"transfer":transfer.name})
+		newDoc.save()
 		self.update_children()
 
-		print "DEBUGDEBUGDEBUG"
-		print self.name
-		for item in self.forecast_table:
-			print item.as_dict()
-
 		#update the forecastQTY
-		self.forecastRecalculate()
+		self.on_update()
 
 	def forecastDelete(self,doc):
 		#delete the previous/dated forecast
