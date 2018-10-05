@@ -110,6 +110,7 @@ class TransferOrder(Document):
 
 
 		'''
+		#TODO do not accept transaction of the current stock is not enough
 		#check if either of the stocks is virtual
 		fromVirtual = frappe.get_doc("Stock", self.stock_from).virtualstock
 		toVirtual = frappe.get_doc("Stock", self.stock_to).virtualstock
@@ -119,6 +120,12 @@ class TransferOrder(Document):
 		#from
 			if not fromVirtual:
 				binDoc = frappe.get_doc("Bin","["+itemDoc.code+"] / "+self.stock_from)
+				#check if there is enough items avaiable
+				#print ""+item.qty+" "+binDoc.qty
+				frappe.valdiated = false
+				frappe.throw("did not submit!")
+				#frappe.db.set(self, 'status', 'Cancelled')
+				return
 				binDoc.forecastCommit(item,self,1)
 		#to
 			if not toVirtual:
